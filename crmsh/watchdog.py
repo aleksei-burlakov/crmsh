@@ -8,7 +8,7 @@ class Watchdog(object):
     """
     Class to find valid watchdog device name
     """
-    QUERY_CMD = "sbd query-watchdog"
+    QUERY_CMD = "sudo sbd query-watchdog"
     DEVICE_FIND_REGREX = "\[[0-9]+\] (/dev/.*)\n.*\nDriver: (.*)"
 
     def __init__(self, _input=None, peer_host=None):

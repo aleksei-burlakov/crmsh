@@ -310,11 +310,11 @@ e.g. crm cluster init ocfs2 -o <ocfs2_device>
             self._config_resource_stack_ocfs2_along()
         logger.info("  OCFS2 device %s mounted on %s", self.target_device, self.mount_point)
 
-    def _find_target_on_join(self, peer):
+    def _find_target_on_join(self, user, peer):
         """
         Find device name from OCF Filesystem param on peer node
         """
-        out = utils.get_stdout_or_raise_error("crm configure show", remote=peer)
+        out = utils.get_stdout_or_raise_error("crm configure show", user, remote=peer)
         for line in out.splitlines():
             if "fstype=ocfs2" in line:
                 res = re.search("device=\"(.*?)\"", line)
@@ -324,11 +324,11 @@ e.g. crm cluster init ocfs2 -o <ocfs2_device>
                     raise ValueError("Filesystem require configure device")
         return None
 
-    def join_ocfs2(self, peer):
+    def join_ocfs2(self, user, peer):
         """
         Called on join process, to verify ocfs2 environment
         """
-        target = self._find_target_on_join(peer)
+        target = self._find_target_on_join(user, peer)
         if not target:
             return
         with logger_utils.status_long("Verify OCFS2 environment"):

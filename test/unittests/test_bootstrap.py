@@ -444,7 +444,7 @@ class TestBootstrap(unittest.TestCase):
         bootstrap._context = mock.Mock(default_nic_list=["eth1"])
         mock_invoke.return_value = (False, None, "error")
 
-        bootstrap.join_ssh("node1")
+        bootstrap.join_ssh("root", "node1")
 
         mock_start_service.assert_called_once_with("sshd.service", enable=True)
         mock_config_ssh.assert_has_calls([

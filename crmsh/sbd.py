@@ -412,7 +412,7 @@ class SBDManager(object):
         for dev in self._sbd_devices:
             if self.no_overwrite and SBDManager.has_sbd_device_already_initialized(dev):
                 continue
-            rc, _, err = bootstrap.invoke("sbd {} -d {} create".format(opt, dev))
+            rc, _, err = bootstrap.invoke("sudo sbd {} -d {} create".format(opt, dev))
             if not rc:
                 utils.fatal("Failed to initialize SBD device {}: {}".format(dev, err))
 
@@ -471,7 +471,7 @@ class SBDManager(object):
             self._restart_cluster_and_configure_sbd_ra()
         else:
             # in init process
-            bootstrap.invoke("systemctl enable sbd.service")
+            bootstrap.invoke("sudo systemctl enable sbd.service")
 
     def _warn_diskless_sbd(self, peer=None):
         """
@@ -502,7 +502,7 @@ class SBDManager(object):
         self._watchdog_inst.init_watchdog()
         self._get_sbd_device()
         if not self._sbd_devices and not self.diskless_sbd:
-            bootstrap.invoke("systemctl disable sbd.service")
+            bootstrap.invoke("sudo systemctl disable sbd.service")
             return
         self._warn_diskless_sbd()
         self._initialize_sbd()
@@ -542,7 +542,7 @@ class SBDManager(object):
         if not utils.package_is_installed("sbd"):
             return
         if not os.path.exists(SYSCONFIG_SBD) or not utils.service_is_enabled("sbd.service", peer_host):
-            bootstrap.invoke("systemctl disable sbd.service")
+            bootstrap.invoke("sudo systemctl disable sbd.service")
             return
         self._watchdog_inst = Watchdog(peer_host=peer_host)
         self._watchdog_inst.join_watchdog()
@@ -552,7 +552,7 @@ class SBDManager(object):
         else:
             self._warn_diskless_sbd(peer_host)
         logger.info("Got {}SBD configuration".format("" if dev_list else "diskless "))
-        bootstrap.invoke("systemctl enable sbd.service")
+        bootstrap.invoke("sudo systemctl enable sbd.service")
 
     @classmethod
     def verify_sbd_device(cls):

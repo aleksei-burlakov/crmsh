@@ -2116,7 +2116,7 @@ def check_ssh_passwd_need(host, user="root"):
     """
     ssh_options = "-o StrictHostKeyChecking=no -o EscapeChar=none -o ConnectTimeout=15"
     ssh_cmd = "ssh {} -T -o Batchmode=yes {} true".format(ssh_options, host)
-    ssh_cmd = add_su(ssh_cmd, user)
+    # ssh_cmd = add_su(ssh_cmd, user)
     rc, _, _ = get_stdout_stderr(ssh_cmd)
     return rc != 0
 
@@ -2486,19 +2486,19 @@ class InterfacesInfo(object):
         return False
 
 
-def check_file_content_included(source_file, target_file, remote=None, source_local=False):
+def check_file_content_included(source_file, target_file, user, remote=None, source_local=False):
     """
     Check whether target_file includes contents of source_file
     """
-    if not detect_file(source_file, remote=None if source_local else remote):
+    if not detect_file(source_file, user, remote=None if source_local else remote):
         raise ValueError("File {} not exist".format(source_file))
-    if not detect_file(target_file, remote=remote):
+    if not detect_file(target_file, user, remote=remote):
         return False
 
     cmd = "cat {}".format(target_file)
-    target_data = get_stdout_or_raise_error(cmd, remote=remote)
+    target_data = get_stdout_or_raise_error(cmd, user, remote=remote)
     cmd = "cat {}".format(source_file)
-    source_data = get_stdout_or_raise_error(cmd, remote=None if source_local else remote)
+    source_data = get_stdout_or_raise_error(cmd, user, remote=None if source_local else remote)
     return source_data in target_data
 
 
@@ -2532,7 +2532,14 @@ class ServiceManager(object):
         if action_type not in self.ACTION_MAP.values():
             raise ValueError("status_type should be {}".format('/'.join(list(self.ACTION_MAP.values()))))
 
+        #FIXME! We should possibly run it under a custom user
         cmd = "systemctl {} {}".format(action_type, self.service_name)
+        if action_type not in ["is-active", "is-enabled", "list-unit-files"]:
+            cmd = "sudo " + cmd
+
+        if len(self.node_list) == 1 and self.node_list[0] == this_node():
+            self.node_list= [] # the else: case below
+
         if self.node_list:
             cluster_run_cmd(cmd, self.node_list)
             return True, None
@@ -2675,12 +2682,12 @@ def calculate_quorate_status(expected_votes, actual_votes):
     return int(actual_votes)/int(expected_votes) > 0.5
 
 
-def get_stdout_or_raise_error(cmd, remote=None, success_val_list=[0], no_raise=False):
+def get_stdout_or_raise_error(cmd, user=userdir.getuser(), remote=None, success_val_list=[0], no_raise=False):
     """
     Common function to get stdout from cmd or raise exception
     """
     if remote:
-        cmd = "ssh {} root@{} \"{}\"".format(SSH_OPTION, remote, cmd)
+        cmd = "ssh {} {}@{} \"{}\"".format(SSH_OPTION, user, remote, cmd)
     rc, out, err = get_stdout_stderr(cmd, no_reg=True)
     if rc not in success_val_list and not no_raise:
         raise ValueError("Failed to run \"{}\": {}".format(cmd, err))
@@ -3112,7 +3119,7 @@ def has_dup_value(_list):
     return _list and len(_list) != len(set(_list))
 
 
-def detect_file(_file, remote=None):
+def detect_file(_file, user, remote=None):
     """
     Detect if file exists, support both local and remote
     """
@@ -3120,7 +3127,7 @@ def detect_file(_file, remote=None):
     if not remote:
         rc = os.path.exists(_file)
     else:
-        cmd = "ssh {} root@{} 'test -f {}'".format(SSH_OPTION, remote, _file)
+        cmd = "ssh {} {}@{} 'test -f {}'".format(SSH_OPTION, user, remote, _file)
         code, _, _ = get_stdout_stderr(cmd)
         rc = code == 0
     return rc

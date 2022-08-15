@@ -100,10 +100,11 @@ class RemoteLock(Lock):
     MIN_LOCK_TIMEOUT = 120
     WAIT_INTERVAL = 10
 
-    def __init__(self, remote_node, for_join=True, lock_dir=None, wait=True, no_warn=False):
+    def __init__(self, remote_user, remote_node, for_join=True, lock_dir=None, wait=True, no_warn=False):
         """
         Init function
         """
+        self.remote_user = remote_user
         self.remote_node = remote_node
         self.for_join = for_join
         self.wait = wait
@@ -114,7 +115,7 @@ class RemoteLock(Lock):
         """
         Run command on remote node
         """
-        cmd = "ssh {} root@{} \"{}\"".format(self.SSH_OPTION, self.remote_node, cmd)
+        cmd = "ssh {} {}@{} \"{}\"".format(self.SSH_OPTION, self.remote_user, self.remote_node, cmd)
         rc, out, err = utils.get_stdout_stderr(cmd)
         if rc == self.SSH_EXIT_ERR:
             raise SSHError(err)
