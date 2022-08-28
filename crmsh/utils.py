@@ -753,29 +753,6 @@ def pipe_cmd_nosudo(cmd):
     return rc
 
 
-def run_cmd_on_remote(cmd, remote_addr, prompt_msg=None):
-    """
-    Run a cmd on remote node
-    return (rc, stdout, err_msg)
-    """
-    rc = 1
-    out_data = None
-    err_data = None
-
-    need_pw = check_ssh_passwd_need(remote_addr)
-    if need_pw and prompt_msg:
-        print(prompt_msg)
-    try:
-        result = parallax.parallax_call([remote_addr], cmd, need_pw)
-        rc, out_data, _ = result[0][1]
-    except ValueError as err:
-        err_match = re.search("Exited with error code ([0-9]+), Error output: (.*)", str(err))
-        if err_match:
-            rc, err_data = err_match.groups()
-    finally:
-        return int(rc), to_ascii(out_data), err_data
-
-
 def get_stdout(cmd, input_s=None, stderr_on=True, shell=True, raw=False):
     '''
     Run a cmd, return stdout output.
@@ -2109,14 +2086,15 @@ def get_iplist_corosync_using():
         raise ValueError(err)
     return re.findall(r'id\s*=\s*(.*)', out)
 
-
-def check_ssh_passwd_need(host, user="root"):
+def check_ssh_passwd_need(host, user=None):
     """
     Check whether access to host need password
     """
     ssh_options = "-o StrictHostKeyChecking=no -o EscapeChar=none -o ConnectTimeout=15"
-    ssh_cmd = "ssh {} -T -o Batchmode=yes {} true".format(ssh_options, host)
-    # ssh_cmd = add_su(ssh_cmd, user)
+    if user:
+        ssh_cmd = "ssh {} -T -o Batchmode=yes {}@{} true".format(ssh_options, user, host)
+    else:
+        ssh_cmd = "ssh {} -T -o Batchmode=yes {} true".format(ssh_options, host)
     rc, _, _ = get_stdout_stderr(ssh_cmd)
     return rc != 0
 
@@ -2516,12 +2494,13 @@ class ServiceManager(object):
             "is_available": "list-unit-files"
             }
 
-    def __init__(self, service_name, remote_addr=None, node_list=[]):
+    def __init__(self, service_name, remote_user=None, remote_addr=None, node_list=[]):
         """
         Init function
         When node_list set, execute action between nodes in parallel
         """
         self.service_name = service_name
+        self.remote_user = remote_user
         self.remote_addr = remote_addr
         self.node_list = node_list
 
@@ -2544,8 +2523,9 @@ class ServiceManager(object):
             cluster_run_cmd(cmd, self.node_list)
             return True, None
         elif self.remote_addr and self.remote_addr != this_node():
-            prompt_msg = "Run \"{}\" on {}".format(cmd, self.remote_addr)
-            rc, output, err = run_cmd_on_remote(cmd, self.remote_addr, prompt_msg)
+            print("Run \"{}\" on {}".format(cmd, self.remote_addr))
+            cmd = "ssh {} {}@{} \"{}\"".format(SSH_OPTION, self.remote_user, self.remote_addr, cmd)
+            rc, output, err = get_stdout_stderr(cmd, no_reg=True)
             # see "EXIT STATUS" in man systemctl
             if rc > 4:
                 raise ValueError("Run \"{}\" error: {}".format(cmd, err))
@@ -2580,64 +2560,64 @@ class ServiceManager(object):
         self._do_action(self.ACTION_MAP["disable"])
 
     @classmethod
-    def service_is_available(cls, name, remote_addr=None):
+    def service_is_available(cls, name, remote_user=None, remote_addr=None):
         """
         Check whether service is available
         """
-        inst = cls(name, remote_addr)
+        inst = cls(name, remote_user, remote_addr)
         return inst.is_available
 
     @classmethod
-    def service_is_enabled(cls, name, remote_addr=None):
+    def service_is_enabled(cls, name, remote_user=None, remote_addr=None):
         """
         Check whether service is enabled
         """
-        inst = cls(name, remote_addr)
+        inst = cls(name, remote_user, remote_addr)
         return inst.is_enabled
 
     @classmethod
-    def service_is_active(cls, name, remote_addr=None):
+    def service_is_active(cls, name, remote_user=None, remote_addr=None):
         """
         Check whether service is active
         """
-        inst = cls(name, remote_addr)
+        inst = cls(name, remote_user, remote_addr)
         return inst.is_active
 
     @classmethod
-    def start_service(cls, name, enable=False, remote_addr=None, node_list=[]):
+    def start_service(cls, name, enable=False, remote_user=None, remote_addr=None, node_list=[]):
         """
         Start service
         """
-        inst = cls(name, remote_addr, node_list)
+        inst = cls(name, remote_user, remote_addr, node_list)
         if enable:
             inst.enable()
         inst.start()
 
     @classmethod
-    def stop_service(cls, name, disable=False, remote_addr=None, node_list=[]):
+    def stop_service(cls, name, disable=False, remote_user=None, remote_addr=None, node_list=[]):
         """
         Stop service
         """
-        inst = cls(name, remote_addr, node_list)
+        inst = cls(name, remote_user, remote_addr, node_list)
         if disable:
             inst.disable()
         inst.stop()
 
     @classmethod
-    def enable_service(cls, name, remote_addr=None, node_list=[]):
+    def enable_service(cls, name, remote_user=None, remote_addr=None, node_list=[]):
         """
         Enable service
         """
-        inst = cls(name, remote_addr, node_list)
+        inst = cls(name, remote_user, remote_addr, node_list)
         if inst.is_available and not inst.is_enabled:
             inst.enable()
 
     @classmethod
-    def disable_service(cls, name, remote_addr=None, node_list=[]):
+    def disable_service(cls, name, remote_user=None, remote_addr=None, node_list=[]):
         """
         Disable service
         """
-        inst = cls(name, remote_addr, node_list)
+        inst = cls(name, remote_user, remote_addr, node_list)
         if inst.is_available and inst.is_enabled:
             inst.disable()
 
@@ -2651,15 +2631,16 @@ enable_service = ServiceManager.enable_service
 disable_service = ServiceManager.disable_service
 
 
-def package_is_installed(pkg, remote_addr=None):
+def package_is_installed(pkg, remote_user=None, remote_addr=None):
     """
     Check if package is installed
     """
     cmd = "rpm -q --quiet {}".format(pkg)
     if remote_addr:
         # check on remote
-        prompt_msg = "Check whether {} is installed on {}".format(pkg, remote_addr)
-        rc, _, _ = run_cmd_on_remote(cmd, remote_addr, prompt_msg)
+        print("Check whether {} is installed on {}".format(pkg, remote_addr))
+        cmd = "ssh {} {}@{} \"{}\"".format(SSH_OPTION, remote_user, remote_addr, cmd)
+        rc, _, _ = get_stdout_stderr(cmd, no_reg=True)
     else:
         # check on local
         rc, _ = get_stdout(cmd)

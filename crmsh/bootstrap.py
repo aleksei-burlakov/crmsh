@@ -803,12 +803,15 @@ def init_ssh():
     if not _context.node_list:
         return
 
+    # FIXME! There are many remote users when -N
+    remote_user = _context.user_list[0]
+
     print()
     node_list = _context.node_list
     # Swap public ssh key between remote node and local
     for node in node_list:
-        swap_public_ssh_key(node, user=_context.current_user, add=True)
-        if utils.service_is_active("pacemaker.service", node):
+        swap_public_ssh_key(node, user=remote_user, add=True)
+        if utils.service_is_active("pacemaker.service", remote_user=remote_user, remote_addr=node):
             utils.fatal("Cluster is currently active on {} - can't run".format(node))
     # Swap public ssh key between one remote node and other remote nodes
     if len(node_list) > 1:
@@ -1411,26 +1414,30 @@ def init():
     init_network()
 
 
-def join_ssh(user, seed_host):
+def join_ssh(seed_host):
     """
     SSH configuration for joining node.
     """
     if not seed_host:
         utils.fatal("No existing IP/hostname specified (use -c option)")
 
+    local_user = _context.current_user
+    remote_user = _context.user_list[0]
     utils.start_service("sshd.service", enable=True)
-    configure_ssh_key(user)
-    swap_public_ssh_key(seed_host, user)
+    configure_ssh_key(local_user)
+    swap_public_ssh_key(seed_host, remote_user)
 
     # This makes sure the seed host has its own SSH keys in its own
     # authorized_keys file (again, to help with the case where the
     # user has done manual initial setup without the assistance of
     # ha-cluster-init).
-    rc, _, err = invoke("ssh {} {}@{} crm cluster init -i {} ssh_remote".format(SSH_OPTION, user, seed_host, _context.default_nic_list[0]))
+    rc, _, err = invoke("ssh {} {}@{} crm cluster init -i {} ssh_remote".format(
+            SSH_OPTION, remote_user, seed_host, _context.default_nic_list[0]))
     if not rc:
-        utils.fatal("Can't invoke crm cluster init -i {} ssh_remote on {}: {}".format(_context.default_nic_list[0], seed_host, err))
+        utils.fatal("Can't invoke crm cluster init -i {} ssh_remote on {}: {}".format(
+                _context.default_nic_list[0], seed_host, err))
 
-
+# TODO! Change the signature swap_public_ssh_key(remote_user, remote_node, add=False):
 def swap_public_ssh_key(remote_node, user=userdir.getuser(), add=False):
     """
     Swap public ssh key between remote_node and local
@@ -1557,7 +1564,7 @@ def join_ssh_merge(_cluster_node):
     known_hosts_path = userdir.gethomedir(_context.current_user) + "/.ssh/known_hosts"
     cat_cmd = "[ -e {} ] && cat {} || true".format(known_hosts_path, known_hosts_path)
     logger_utils.log_only_to_file("parallax.call {} : {}".format(hosts, cat_cmd))
-    results = parallax.parallax_call(hosts, cat_cmd, strict=False)
+    results = parallax.parallax_call(hosts, cat_cmd, strict=False) # FIXME! You know what to do
     for host, result in results:
         if isinstance(result, parallax.Error):
             logger.warning("Failed to get known_hosts from {}: {}".format(host, str(result)))
@@ -1660,7 +1667,8 @@ def setup_passwordless_with_other_nodes(init_node):
     Should fetch the node list from init node, then swap the key
     """
     # Fetch cluster nodes list
-    cmd = "ssh {} {}@{} crm_node -l".format(SSH_OPTION, _context.user_list[0], init_node)
+    remote_user = _context.user_list[0]
+    cmd = "ssh {} {}@{} crm_node -l".format(SSH_OPTION, remote_user, init_node)
     rc, out, err = utils.get_stdout_stderr(cmd)
     if rc != 0:
         utils.fatal("Can't fetch cluster nodes list from {}: {}".format(init_node, err))
@@ -1683,7 +1691,6 @@ def setup_passwordless_with_other_nodes(init_node):
             cluster_nodes_list.append(tokens[1])
 
     # Filter out init node from cluster_nodes_list
-    remote_user = _context.user_list[0]
     cmd = "ssh {} {}@{} hostname".format(SSH_OPTION, remote_user , init_node)
     rc, out, err = utils.get_stdout_stderr(cmd)
     if rc != 0:
@@ -1694,7 +1701,7 @@ def setup_passwordless_with_other_nodes(init_node):
     # Swap ssh public key between join node and other cluster nodes
     for node in cluster_nodes_list:
         #FIXME! It should take the user_list from the context
-        swap_public_ssh_key(node, _context.current_user)
+        swap_public_ssh_key(node, remote_user)
 
 
 def sync_files_to_disk():
@@ -1745,7 +1752,7 @@ def join_cluster(seed_host):
     # mountpoints for clustered filesystems.  Unfortunately we don't have
     # that yet, so the following crawling horror takes a punt on the seed
     # node being up, then asks it for a list of mountpoints...
-    remote_user = _context.current_user # TODO! Let them be different across nodes
+    remote_user = _context.user_list[0] # TODO! Let them be different across nodes
     if _context.cluster_node:
         _rc, outp, _ = utils.get_stdout_stderr("ssh {} {}@{} 'cibadmin -Q --xpath \"//primitive\"'".format(
                 SSH_OPTION, remote_user, seed_host))
@@ -1792,7 +1799,7 @@ def join_cluster(seed_host):
         csync2_update(corosync.conf())
         invoke("ssh {} {}@{} corosync-cfgtool -R".format(SSH_OPTION, remote_user, seed_host))
 
-    _context.sbd_manager.join_sbd(seed_host)
+    _context.sbd_manager.join_sbd(remote_user, seed_host)
 
     if ipv6_flag and not is_unicast:
         # for ipv6 mcast
@@ -2124,11 +2131,12 @@ def bootstrap_join(context):
 
         #FIXME! There should be not only current user,
         # but also the one specified in -c user@node
-        join_ssh(_context.current_user, cluster_node)
+        join_ssh(cluster_node)
 
+        remote_user = _context.user_list[0] #FIXME! There are several users
         n = 0
         while n < REJOIN_COUNT:
-            if utils.service_is_active("pacemaker.service", cluster_node):
+            if utils.service_is_active("pacemaker.service", remote_user=remote_user, remote_addr=cluster_node):
                 break
             n += 1
             logger.warning("Cluster is inactive on %s. Retry in %d seconds", cluster_node, REJOIN_INTERVAL)

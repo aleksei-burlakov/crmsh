@@ -531,7 +531,7 @@ class SBDManager(object):
         if self._context.cluster_is_running:
             SBDTimeout.adjust_sbd_timeout_related_cluster_configuration()
 
-    def join_sbd(self, peer_host):
+    def join_sbd(self, remote_user, peer_host):
         """
         Function join_sbd running on join process only
         On joining process, check whether peer node has enabled sbd.service
@@ -541,7 +541,8 @@ class SBDManager(object):
 
         if not utils.package_is_installed("sbd"):
             return
-        if not os.path.exists(SYSCONFIG_SBD) or not utils.service_is_enabled("sbd.service", peer_host):
+        if not os.path.exists(SYSCONFIG_SBD) or not utils.service_is_enabled(
+                "sbd.service", remote_user, peer_host):
             bootstrap.invoke("sudo systemctl disable sbd.service")
             return
         self._watchdog_inst = Watchdog(peer_host=peer_host)

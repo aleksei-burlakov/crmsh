@@ -254,10 +254,10 @@ class QDevice(object):
         exception_msg = ""
         suggest = ""
         duplicated_cluster_name = False
-        if not utils.package_is_installed("corosync-qnetd", self.qnetd_addr):
+        if not utils.package_is_installed("corosync-qnetd", remote_addr=self.qnetd_addr):
             exception_msg = "Package \"corosync-qnetd\" not installed on {}!".format(self.qnetd_addr)
             suggest = "install \"corosync-qnetd\" on {}".format(self.qnetd_addr)
-        elif utils.service_is_active("corosync-qnetd", self.qnetd_addr):
+        elif utils.service_is_active("corosync-qnetd", remote_addr=self.qnetd_addr):
             cmd = "corosync-qnetd-tool -l -c {}".format(self.cluster_name)
             if utils.get_stdout_or_raise_error(cmd, remote=self.qnetd_addr):
                 duplicated_cluster_name = True
@@ -281,6 +281,7 @@ class QDevice(object):
                 exception_msg += "\nCluster service already successfully started on this node except qdevice service.\nIf you still want to use qdevice, {}.\nThen run command \"crm cluster init\" with \"qdevice\" stage, like:\n  crm cluster init qdevice qdevice_related_options\nThat command will setup qdevice separately.".format(suggest)
             raise ValueError(exception_msg)
 
+    #TODO! add self.remote_user argument to the functions below (utils.***_service)
     def enable_qnetd(self):
         utils.enable_service(self.qnetd_service, remote_addr=self.qnetd_addr)
 
