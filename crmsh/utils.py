@@ -101,6 +101,22 @@ def nogc():
 getuser = userdir.getuser
 gethomedir = userdir.gethomedir
 
+def user_of(host):
+    hosts = config.get_option('core', 'hosts')
+    for item in hosts:
+        if item.find('@') != -1:
+            user, node = item.split('@')
+        else:
+            user = userdir.getuser()
+            node = item
+        if host == node:
+            return user
+    if host == 'localhost' or host == this_node():
+        return userdir.getuser()
+    logger.warning("The user for {} is not specified. {} is used instead".format(
+            host, userdir.getuser()))
+    return userdir.getuser()
+
 
 @memoize
 def this_node():
@@ -1719,7 +1735,12 @@ def cluster_run_cmd(cmd, node_list=[]):
     nodelist = node_list or list_cluster_nodes()
     if not nodelist:
         raise ValueError("Failed to get node list from cluster")
-    return parallax.parallax_call(nodelist, cmd)
+    host_port_user = []
+    for host in nodelist:
+        host_port_user.append([host, None, user_of(host)])
+    import parallax
+    opts = parallax.Options()
+    return parallax.call(host_port_user, cmd, opts) # TODO! Make the same with parallax.parallax_call
 
 
 def list_cluster_nodes_except_me():
@@ -2479,6 +2500,16 @@ def check_file_content_included(source_file, target_file, user, remote=None, sou
     source_data = get_stdout_or_raise_error(cmd, user, remote=None if source_local else remote)
     return source_data in target_data
 
+def check_text_included(text, target_file, user, remote=None, source_local=False):
+    """
+    Check whether target_file includes contents of source_file
+    """
+    if not detect_file(target_file, user, remote=remote):
+        return False
+
+    cmd = "cat {}".format(target_file)
+    target_data = get_stdout_or_raise_error(cmd, user, remote=remote)
+    return text in target_data
 
 class ServiceManager(object):
     """

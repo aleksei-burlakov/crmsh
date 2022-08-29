@@ -767,11 +767,16 @@ to get the geo cluster configuration.""",
         opts = parallax.Options()
         opts.ssh_options = ['StrictHostKeyChecking=no']
         for host in hosts:
-            res = utils.check_ssh_passwd_need(host)
+            res = utils.check_ssh_passwd_need(host, utils.user_of(host))
             if res:
                 opts.askpass = True
                 break
-        for host, result in parallax.call(hosts, cmd, opts).items():
+
+        host_port_user = []
+        for host in hosts:
+            host_port_user.append([host, None, utils.user_of(host)])
+
+        for host, result in parallax.call(host_port_user, cmd, opts).items():
             if isinstance(result, parallax.Error):
                 logger.error("[%s]: %s" % (host, result))
             else:
