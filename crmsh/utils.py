@@ -111,7 +111,7 @@ def user_of(host):
             node = item
         if host == node:
             return user
-    if host == 'localhost' or host == this_node():
+    if host == 'localhost' or host == this_node() or host is None:
         return userdir.getuser()
     logger.warning("The user for {} is not specified. {} is used instead".format(
             host, userdir.getuser()))
@@ -2485,30 +2485,30 @@ class InterfacesInfo(object):
         return False
 
 
-def check_file_content_included(source_file, target_file, user, remote=None, source_local=False):
+def check_file_content_included(source_file, target_file, remote=None, source_local=False):
     """
     Check whether target_file includes contents of source_file
     """
-    if not detect_file(source_file, user, remote=None if source_local else remote):
+    if not detect_file(source_file, remote=None if source_local else remote):
         raise ValueError("File {} not exist".format(source_file))
-    if not detect_file(target_file, user, remote=remote):
+    if not detect_file(target_file, remote=remote):
         return False
 
     cmd = "cat {}".format(target_file)
-    target_data = get_stdout_or_raise_error(cmd, user, remote=remote)
+    target_data = get_stdout_or_raise_error(cmd, remote=remote)
     cmd = "cat {}".format(source_file)
-    source_data = get_stdout_or_raise_error(cmd, user, remote=None if source_local else remote)
+    source_data = get_stdout_or_raise_error(cmd, remote=None if source_local else remote)
     return source_data in target_data
 
-def check_text_included(text, target_file, user, remote=None, source_local=False):
+def check_text_included(text, target_file, remote=None, source_local=False):
     """
     Check whether target_file includes contents of source_file
     """
-    if not detect_file(target_file, user, remote=remote):
+    if not detect_file(target_file, remote=remote):
         return False
 
     cmd = "cat {}".format(target_file)
-    target_data = get_stdout_or_raise_error(cmd, user, remote=remote)
+    target_data = get_stdout_or_raise_error(cmd, remote=remote)
     return text in target_data
 
 class ServiceManager(object):
@@ -2694,12 +2694,13 @@ def calculate_quorate_status(expected_votes, actual_votes):
     return int(actual_votes)/int(expected_votes) > 0.5
 
 
-def get_stdout_or_raise_error(cmd, user=userdir.getuser(), remote=None, success_val_list=[0], no_raise=False):
+def get_stdout_or_raise_error(cmd, remote=None, success_val_list=[0], no_raise=False):
     """
     Common function to get stdout from cmd or raise exception
     """
     if remote:
-        cmd = "ssh {} {}@{} \"{}\"".format(SSH_OPTION, user, remote, cmd)
+        remote_user = user_of(remote)
+        cmd = "ssh {} {}@{} \"{}\"".format(SSH_OPTION, remote_user, remote, cmd)
     rc, out, err = get_stdout_stderr(cmd, no_reg=True)
     if rc not in success_val_list and not no_raise:
         raise ValueError("Failed to run \"{}\": {}".format(cmd, err))
@@ -3131,7 +3132,7 @@ def has_dup_value(_list):
     return _list and len(_list) != len(set(_list))
 
 
-def detect_file(_file, user, remote=None):
+def detect_file(_file, remote=None):
     """
     Detect if file exists, support both local and remote
     """
@@ -3139,7 +3140,8 @@ def detect_file(_file, user, remote=None):
     if not remote:
         rc = os.path.exists(_file)
     else:
-        cmd = "ssh {} {}@{} 'test -f {}'".format(SSH_OPTION, user, remote, _file)
+        remote_user = user_of(remote)
+        cmd = "ssh {} {}@{} 'test -f {}'".format(SSH_OPTION, remote_user, remote, _file)
         code, _, _ = get_stdout_stderr(cmd)
         rc = code == 0
     return rc
