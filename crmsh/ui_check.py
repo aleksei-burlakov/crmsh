@@ -15,7 +15,7 @@ import yaml
 import uuid
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from . import command
-from . import config
+from . import config, sh
 from . import utils
 from . import scripts
 from . import completers as compl
@@ -118,7 +118,8 @@ class Rabbiteer():
         data = {'env': {'provider': provider},
                 'execution_id': execution_id,
                 'group_id': str(uuid.uuid4()),
-                'targets': []
+                'targets': [],
+                'target_type': 'cluster'
                }
         for agent_id in agent_ids:
             data['targets'].append({'agent_id': agent_id, 'checks': check_ids})
@@ -272,7 +273,7 @@ class Check(command.UI):
 
 
     def get_node_agent_id(self, node_name):
-        rc, id, err_msg = utils.get_stdout_stderr_auto_ssh_no_input(node_name, "trento-agent id")
+        rc, id, err_msg = sh.cluster_shell().get_rc_stdout_stderr_without_input(node_name, "trento-agent id")
         if rc != 0:
             utils.fatal("trento-agent is not running on {}: {}". format(node_name, err_msg))
         return id
