@@ -6,3 +6,14 @@
         name: post-results
   vars:
     status: "{{ 'corosync' in ansible_facts.packages and ansible_facts.packages['corosync'][0].version is version(expected[name], '>=') }}"
+
+
+- blockinfile:
+    dest: /root/Workspace/ansible.txt
+    marker: ""
+    content: |
+      roles/checks/{{name}}/tasks/main.yml
+        config_updated: {{ config_updated }}
+        config_updated is not changed: {{ config_updated is not changed }}
+        ansible_facts.packages['corosync'][0].version: {{ ansible_facts.packages['corosync'][0].version }}
+        expected[name]: {{ expected[name] }}

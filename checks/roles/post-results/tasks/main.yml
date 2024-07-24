@@ -1,7 +1,16 @@
 ---
 
-# Do not change the name. It is used in the crmsh_callback call
+# Do not change the name. It is use in the crmsh_callback call
 - name: set_test_result
   set_fact:
     test_result: "{{ (status == true) | ternary('passing', on_failure | default('critical')) }}"
   delegate_to: localhost
+
+# For some reason, some other blockinfiles conflict with this one.
+# For example the one in 2.2.1 doesn't write anything.
+# So let's remove this one.
+#- blockinfile:
+#    dest: /root/Workspace/ansible.txt
+#    marker: ""
+#    content: |
+#      roles/post-results/tasks/main.yml

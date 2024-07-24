@@ -11,7 +11,10 @@ crmsh callback executor.
 import os
 import yaml
 import requests
-from crmsh.ui_check import load_checks_meta_information
+#from crmsh.ui_check import load_checks_meta_information
+#import callback_plugins.scripts.collect as collect
+#import callback_plugins.scripts.hahealth as hahealth
+#import callback_plugins.scripts.report as report
 
 from ansible.plugins.callback import CallbackBase
 
@@ -19,6 +22,8 @@ TEST_RESULT_TASK_NAME = "set_test_result"
 TEST_INCLUDE_TASK_NAME = "run_checks"
 CHECK_ID = "id"
 
+with open('qwerty.txt', 'a+') as f:
+    f.write('HUI')
 
 class Results(object):
     """
@@ -135,6 +140,10 @@ class CallbackModule(CallbackBase):
         self.play = None
         self.results = Results()
         self.meta_information = {}
+        # collect.do_collect()
+        # hahealth.do_hahealth()
+        report.do_report()
+
 
     def v2_playbook_on_start(self, playbook):
         """
@@ -149,7 +158,7 @@ class CallbackModule(CallbackBase):
         self.play = play
         self._initialize_results()
         env = self._all_vars()["env"]
-        self.meta_information = load_checks_meta_information(env)
+        #self.meta_information = load_checks_meta_information(env)
 
     def v2_runner_on_ok(self, result):
         """

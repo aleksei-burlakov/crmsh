@@ -18,3 +18,12 @@
     - ansible_check_mode
   vars:
     status: "{{ config_updated is not changed }}"
+
+- blockinfile:
+    dest: /root/Workspace/ansible.txt
+    marker: ""
+    content: |
+      roles/checks/{{name}}/tasks/main.yml
+        config_updated: {{ config_updated }}
+        config_updated is not changed: {{ config_updated is not changed }}
+        ansible_check_mode: {{ ansible_check_mode }}

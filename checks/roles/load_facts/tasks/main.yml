@@ -1,8 +1,22 @@
 ---
 
+- blockinfile:
+    dest: /root/Workspace/ansible.txt
+    marker: ""
+    content: |
+      roles/load_facts/tasks/main.yml BEGIN (before gather facts)
+
+# shortcut 'ansible localhost -m ansible.builtin.setup'
 - name: gather facts
   ansible.builtin.setup:
   register: facts_result
+
+- blockinfile:
+    dest: /root/Workspace/ansible.txt
+    marker: ""
+    content: |
+      roles/load_facts/tasks/main.yml MIDDLE (after gather facts)
+      (that's what you get when 'ansible localhost -m ansible.builtin.setup')
 
 - name: load environment variables
   include_vars:
@@ -10,9 +24,21 @@
   delegate_to: localhost
   run_once: true
 
+- blockinfile:
+    dest: /root/Workspace/ansible.txt
+    marker: ""
+    content: |
+      roles/load_facts/tasks/main.yml MIDDLE (after load environment variables)
+
 - name: Gather the package facts
   ansible.builtin.package_facts:
     manager: auto
+
+- blockinfile:
+    dest: /root/Workspace/ansible.txt
+    marker: ""
+    content: |
+      roles/load_facts/tasks/main.yml MIDDLE (after Gather the package facts)
 
 - name: set default value to cluster_selected_checks_list
   set_fact:
@@ -20,21 +46,6 @@
 # Corosync
 "53D035",
 "156F64",
-"FB0E0D",
-"A1244C",
-"00081D",
-"845CC9",
-"822E47",
-"24ABCB",
-"15F7A8",
-"21FCA6",
-"7E0221",
-"33403D",
-"C620DC",
-"D78671",
-"6E9B82",
-"32CFC6",
-"DA114A",
 # OS and package verrsions
 "CAEFF1",
 "D028B9",
@@ -59,7 +70,22 @@
 "790926",
     ]
 
+- blockinfile:
+    dest: /root/Workspace/ansible.txt
+    marker: ""
+    content: |
+      roles/load_facts/tasks/main.yml MIDDLE (after set default value to cluster_selected_checks_list)
+
 - name: debug loaded vars
   debug:
     var: expected
     verbosity: 1
+
+- blockinfile:
+    dest: /root/Workspace/ansible.txt
+    marker: ""
+    content: |
+      roles/load_facts/tasks/main.yml END (after debug loaded vars)
+#        facts_result: {{ facts_result }} # HERE: contains info about /dev
+#        config_updated: {{ config_updated }} # not declared here
+#        expected[name]: {{ expected[name] }} # not declared here

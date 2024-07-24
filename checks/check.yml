@@ -6,18 +6,32 @@
 
   vars:
     crmsh_labels:
-      - test  # Do not change the name. It is used in the crmsh_callback call
+      - test  # Do not change the name. It is use in the crmsh_callback call
 
   tasks:
+    - copy:
+        dest: /root/Workspace/ansible.txt
+        content: check.yml BEGIN (before require check mode)
+
     - name: require check mode
       fail:
         msg: "Only supported for --check option"
       when:
         - not ansible_check_mode
 
+    - blockinfile:
+        dest: /root/Workspace/ansible.txt
+        marker: ""
+        content: check.yml MIDDLE (after require check mode)
+
     - name: Include load_facts
       import_role:
         name: load_facts
+
+    - blockinfile:
+        dest: /root/Workspace/ansible.txt
+        marker: ""
+        content: check.yml MIDDLE (after Include load_facts)
 
     - name: Find checks
       find:
@@ -27,12 +41,22 @@
       run_once: true
       delegate_to: localhost
 
-    # Do not change the name. It is used in the crmsh_callback call
+    - blockinfile:
+        dest: /root/Workspace/ansible.txt
+        marker: ""
+        content: check.yml MIDDLE (after Find checks)
+
+    # Do not change the name. It is use in the crmsh_callback call
     - name: run_checks
       include_role:
         name: "{{ check_item.path }}"
       loop: "{{ checks.files|sort(attribute='path') }}"
       loop_control:
-        loop_var: check_item  # Do not change the name. It is used in the crmsh_callback call
+        loop_var: check_item  # Do not change the name. It is use in the crmsh_callback call
       when: ((lookup("file", check_item.path+"/defaults/main.yml")|from_yaml).id|string)|default("") in cluster_selected_checks_list
       #when: (check_item.path | basename) in cluster_selected_checks_list
+
+    - blockinfile:
+        dest: /root/Workspace/ansible.txt
+        marker: ""
+        content: check.yml END (after run_checks)
